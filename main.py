@@ -21,7 +21,6 @@ symbol = st.text_input("Welche Aktie? (z. B. AAPL oder BRK-B)")
 # 🔑 Hauptlogik
 # =========================
 if symbol:
-    # Format fix
     symbol = symbol.upper().replace("-", ".")
 
     ticker = yf.Ticker(symbol)
@@ -40,7 +39,7 @@ if symbol:
 
 
     # =========================
-    # 📊 Finanzdaten (für eigene Berechnung)
+    # 📊 Finanzdaten laden
     # =========================
     financials = ticker.financials
 
@@ -49,13 +48,14 @@ if symbol:
     # 📈 Wachstum berechnen
     # =========================
     growth = None
+    revenue_series = None
 
     try:
-        revenue = financials.loc["Total Revenue"]
+        revenue_series = financials.loc["Total Revenue"]
 
-        if len(revenue) >= 2:
-            latest = revenue.iloc[0]
-            previous = revenue.iloc[1]
+        if len(revenue_series) >= 2:
+            latest = revenue_series.iloc[0]
+            previous = revenue_series.iloc[1]
 
             growth = (latest - previous) / previous
     except:
@@ -66,6 +66,8 @@ if symbol:
     # 💰 Marge berechnen
     # =========================
     margin = None
+    profit = None
+    revenue = None
 
     try:
         profit = financials.loc["Net Income"].iloc[0]
@@ -77,7 +79,7 @@ if symbol:
 
 
     # =========================
-    # 📊 Zusatzdaten (optional)
+    # 📊 Zusatzdaten
     # =========================
     try:
         info = ticker.info
@@ -110,16 +112,12 @@ if symbol:
 
     if pe and pe < 25:
         score += 1
-
     if growth and growth > 0.05:
         score += 1
-
     if margin and margin > 0.15:
         score += 1
-
     if roe and roe > 0.15:
         score += 1
-
     if debt and debt < 100:
         score += 1
 
@@ -136,7 +134,7 @@ if symbol:
 
 
     # =========================
-    # 🧠 Analyse (Text)
+    # 🧠 Analyse
     # =========================
     st.write("### 🧠 Analyse")
 
@@ -175,6 +173,38 @@ if symbol:
     else:
         for point in analysis:
             st.write("• " + point)
+
+
+    # =========================
+    # 📊 Berechnung anzeigen
+    # =========================
+    st.write("---")
+    st.write("## 📊 Berechnung im Detail")
+
+    with st.expander("📈 Wachstum berechnen"):
+        try:
+            latest = revenue_series.iloc[0]
+            previous = revenue_series.iloc[1]
+
+            st.write(f"Letzter Umsatz: {latest}")
+            st.write(f"Vorheriger Umsatz: {previous}")
+            st.code("(latest - previous) / previous")
+
+            calc_growth = (latest - previous) / previous
+            st.write(f"Ergebnis: {round(calc_growth * 100, 2)} %")
+        except:
+            st.write("Keine Daten verfügbar")
+
+    with st.expander("💰 Marge berechnen"):
+        try:
+            st.write(f"Gewinn: {profit}")
+            st.write(f"Umsatz: {revenue}")
+            st.code("profit / revenue")
+
+            calc_margin = profit / revenue
+            st.write(f"Ergebnis: {round(calc_margin * 100, 2)} %")
+        except:
+            st.write("Keine Daten verfügbar")
 
 
     # =========================
