@@ -1,14 +1,14 @@
 # =========================
 # 📦 Imports
 # =========================
-import streamlit as st
-import yfinance as yf
+import streamlit as st          # macht die Web-App
+import yfinance as yf          # holt Finanzdaten
 
 
 # =========================
 # 🎯 Titel
 # =========================
-st.title("📈 Stock Analyzer")
+st.title("📈 Stock Analyzer (Advanced)")
 
 
 # =========================
@@ -21,42 +21,48 @@ symbol = st.text_input("Welche Aktie? (z. B. AAPL oder BRK-B)")
 # 🔑 Hauptlogik
 # =========================
 if symbol:
+    # Format fix → BRK-B wird zu BRK.B
     symbol = symbol.upper().replace("-", ".")
 
+    # Aktie laden
     ticker = yf.Ticker(symbol)
+
 
     # =========================
     # 📊 Kursdaten (Chart)
     # =========================
     hist = ticker.history(period="1y")
 
+    # Wenn keine Daten → abbrechen
     if hist.empty:
         st.error("❌ Keine Kursdaten gefunden")
         st.stop()
 
     st.write("### 📊 Kursverlauf (1 Jahr)")
-    st.line_chart(hist["Close"])
+    st.line_chart(hist["Close"])   # zeigt Kursverlauf
 
 
     # =========================
     # 📊 Finanzdaten laden
     # =========================
-    financials = ticker.financials
+    financials = ticker.financials       # Gewinn & Umsatz
+    balance = ticker.balance_sheet       # Schulden & Eigenkapital
 
 
     # =========================
     # 📈 Wachstum berechnen
     # =========================
     growth = None
-    revenue_series = None
-
     try:
         revenue_series = financials.loc["Total Revenue"]
 
+        # wir brauchen mindestens 2 Jahre
         if len(revenue_series) >= 2:
-            latest = revenue_series.iloc[0]
-            previous = revenue_series.iloc[1]
+            latest = revenue_series.iloc[0]    # aktueller Umsatz
+            previous = revenue_series.iloc[1]  # Umsatz letztes Jahr
 
+            # Formel:
+            # Wachstum = (neu - alt) / alt
             growth = (latest - previous) / previous
     except:
         growth = None
@@ -66,29 +72,67 @@ if symbol:
     # 💰 Marge berechnen
     # =========================
     margin = None
-    profit = None
-    revenue = None
-
     try:
-        profit = financials.loc["Net Income"].iloc[0]
-        revenue = financials.loc["Total Revenue"].iloc[0]
+        profit = financials.loc["Net Income"].iloc[0]      # Gewinn
+        revenue = financials.loc["Total Revenue"].iloc[0]  # Umsatz
 
+        # Formel:
+        # Marge = Gewinn / Umsatz
         margin = profit / revenue
     except:
         margin = None
 
 
     # =========================
-    # 📊 Zusatzdaten
+    # 📊 KGV (PE) berechnen
     # =========================
+    pe = None
     try:
-        info = ticker.info
-    except:
-        info = {}
+        price = hist["Close"].iloc[-1]   # aktueller Aktienpreis
+        net_income = financials.loc["Net Income"].iloc[0]
 
-    pe = info.get("trailingPE") if info else None
-    roe = info.get("returnOnEquity") if info else None
-    debt = info.get("debtToEquity") if info else None
+        # Anzahl Aktien (wichtig für Gewinn pro Aktie)
+        shares = ticker.info.get("sharesOutstanding")
+
+        if shares and net_income:
+            # Gewinn pro Aktie (EPS)
+            eps = net_income / shares
+
+            # Formel:
+            # KGV = Preis / Gewinn pro Aktie
+            pe = price / eps
+    except:
+        pe = None
+
+
+    # =========================
+    # 🏆 ROE berechnen
+    # =========================
+    roe = None
+    try:
+        equity = balance.loc["Total Stockholder Equity"].iloc[0]  # Eigenkapital
+        net_income = financials.loc["Net Income"].iloc[0]         # Gewinn
+
+        # Formel:
+        # ROE = Gewinn / Eigenkapital
+        roe = net_income / equity
+    except:
+        roe = None
+
+
+    # =========================
+    # ⚖️ Verschuldung berechnen
+    # =========================
+    debt = None
+    try:
+        total_debt = balance.loc["Total Debt"].iloc[0]             # Schulden
+        equity = balance.loc["Total Stockholder Equity"].iloc[0]   # Eigenkapital
+
+        # Formel:
+        # Verschuldung = Schulden / Eigenkapital
+        debt = total_debt / equity
+    except:
+        debt = None
 
 
     # =========================
@@ -96,134 +140,8 @@ if symbol:
     # =========================
     st.write("### 📊 Kennzahlen")
 
-    st.write(f"KGV (PE): {round(pe, 2) if pe else 'Nicht verfügbar'}")
-    st.write(f"Wachstum: {round(growth * 100, 2) if growth else 'Nicht verfügbar'} %")
-    st.write(f"Profit-Marge: {round(margin * 100, 2) if margin else 'Nicht verfügbar'} %")
-    st.write(f"ROE: {round(roe * 100, 2) if roe else 'Nicht verfügbar'} %")
-    st.write(f"Verschuldung: {round(debt, 2) if debt else 'Nicht verfügbar'}")
-
-
-    # =========================
-    # 🧠 Bewertungssystem
-    # =========================
-    st.write("### 📊 Investment Empfehlung")
-
-    score = 0
-
-    if pe and pe < 25:
-        score += 1
-    if growth and growth > 0.05:
-        score += 1
-    if margin and margin > 0.15:
-        score += 1
-    if roe and roe > 0.15:
-        score += 1
-    if debt and debt < 100:
-        score += 1
-
-    st.write(f"Score: {score}/5")
-
-    if score >= 4:
-        st.success("🟢 Kaufen – starke Fundamentaldaten")
-    elif score == 3:
-        st.info("🟡 Halten – solide Aktie")
-    elif score == 2:
-        st.warning("⚪ Neutral – gemischt")
-    else:
-        st.error("🔴 Verkaufen – schwach")
-
-
-    # =========================
-    # 🧠 Analyse
-    # =========================
-    st.write("### 🧠 Analyse")
-
-    analysis = []
-
-    if pe:
-        if pe < 20:
-            analysis.append("Die Aktie ist günstig bewertet.")
-        elif pe > 30:
-            analysis.append("Die Aktie ist eher teuer.")
-
-    if growth:
-        if growth > 0.1:
-            analysis.append("Das Unternehmen wächst stark.")
-        elif growth < 0.03:
-            analysis.append("Das Wachstum ist schwach.")
-
-    if margin:
-        if margin > 0.2:
-            analysis.append("Sehr profitables Unternehmen.")
-        elif margin < 0.1:
-            analysis.append("Niedrige Profitabilität.")
-
-    if roe:
-        if roe > 0.15:
-            analysis.append("Effiziente Kapitalnutzung.")
-
-    if debt:
-        if debt > 150:
-            analysis.append("Hohe Verschuldung.")
-        elif debt < 50:
-            analysis.append("Geringe Verschuldung.")
-
-    if len(analysis) == 0:
-        st.write("Keine ausreichende Analyse möglich.")
-    else:
-        for point in analysis:
-            st.write("• " + point)
-
-
-    # =========================
-    # 📊 Berechnung anzeigen
-    # =========================
-    st.write("---")
-    st.write("## 📊 Berechnung im Detail")
-
-    with st.expander("📈 Wachstum berechnen"):
-        try:
-            latest = revenue_series.iloc[0]
-            previous = revenue_series.iloc[1]
-
-            st.write(f"Letzter Umsatz: {latest}")
-            st.write(f"Vorheriger Umsatz: {previous}")
-            st.code("(latest - previous) / previous")
-
-            calc_growth = (latest - previous) / previous
-            st.write(f"Ergebnis: {round(calc_growth * 100, 2)} %")
-        except:
-            st.write("Keine Daten verfügbar")
-
-    with st.expander("💰 Marge berechnen"):
-        try:
-            st.write(f"Gewinn: {profit}")
-            st.write(f"Umsatz: {revenue}")
-            st.code("profit / revenue")
-
-            calc_margin = profit / revenue
-            st.write(f"Ergebnis: {round(calc_margin * 100, 2)} %")
-        except:
-            st.write("Keine Daten verfügbar")
-
-
-    # =========================
-    # 📚 Erklärung
-    # =========================
-    st.write("---")
-    st.write("## 📚 Erklärung der Kennzahlen")
-
-    with st.expander("📊 KGV"):
-        st.write("Preis im Verhältnis zum Gewinn.")
-
-    with st.expander("📈 Wachstum"):
-        st.write("Wie stark der Umsatz steigt.")
-
-    with st.expander("💰 Marge"):
-        st.write("Wie viel Gewinn gemacht wird.")
-
-    with st.expander("🏆 ROE"):
-        st.write("Effizienz des Unternehmens.")
-
-    with st.expander("⚖️ Verschuldung"):
-        st.write("Wie viele Schulden vorhanden sind.")
+    st.write(f"KGV: {round(pe,2) if pe else 'N/A'}")
+    st.write(f"Wachstum: {round(growth*100,2) if growth else 'N/A'} %")
+    st.write(f"Marge: {round(margin*100,2) if margin else 'N/A'} %")
+    st.write(f"ROE: {round(roe*100,2) if roe else 'N/A'} %")
+    st.write(f"Verschuldung: {round(debt,2) if debt else 'N/A'}")
