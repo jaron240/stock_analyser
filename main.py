@@ -21,44 +21,72 @@ symbol = st.text_input("Welche Aktie? (z. B. AAPL oder BRK-B)")
 # 🔑 Hauptlogik
 # =========================
 if symbol:
-    # Formatieren (BRK-B → BRK.B)
+    # Format fix
     symbol = symbol.upper().replace("-", ".")
 
-    # =========================
-    # 📊 Daten laden
-    # =========================
     ticker = yf.Ticker(symbol)
 
-    # Kursdaten (zuverlässig)
+    # =========================
+    # 📊 Kursdaten (Chart)
+    # =========================
     hist = ticker.history(period="1y")
 
     if hist.empty:
-        st.error("❌ Keine Kursdaten gefunden – prüfe das Symbol")
+        st.error("❌ Keine Kursdaten gefunden")
         st.stop()
 
-    # Zusatzdaten (kann manchmal fehlschlagen)
+    st.write("### 📊 Kursverlauf (1 Jahr)")
+    st.line_chart(hist["Close"])
+
+
+    # =========================
+    # 📊 Finanzdaten (für eigene Berechnung)
+    # =========================
+    financials = ticker.financials
+
+
+    # =========================
+    # 📈 Wachstum berechnen
+    # =========================
+    growth = None
+
+    try:
+        revenue = financials.loc["Total Revenue"]
+
+        if len(revenue) >= 2:
+            latest = revenue.iloc[0]
+            previous = revenue.iloc[1]
+
+            growth = (latest - previous) / previous
+    except:
+        growth = None
+
+
+    # =========================
+    # 💰 Marge berechnen
+    # =========================
+    margin = None
+
+    try:
+        profit = financials.loc["Net Income"].iloc[0]
+        revenue = financials.loc["Total Revenue"].iloc[0]
+
+        margin = profit / revenue
+    except:
+        margin = None
+
+
+    # =========================
+    # 📊 Zusatzdaten (optional)
+    # =========================
     try:
         info = ticker.info
     except:
         info = {}
-        st.warning("⚠️ Einige Daten konnten nicht geladen werden")
 
-
-    # =========================
-    # 📈 Kennzahlen holen
-    # =========================
     pe = info.get("trailingPE") if info else None
-    growth = info.get("revenueGrowth") if info else 0
-    margin = info.get("profitMargins") if info else 0
-    roe = info.get("returnOnEquity") if info else 0
-    debt = info.get("debtToEquity") if info else 0
-
-
-    # =========================
-    # 📊 Chart anzeigen
-    # =========================
-    st.write("### 📊 Kursverlauf (1 Jahr)")
-    st.line_chart(hist["Close"])
+    roe = info.get("returnOnEquity") if info else None
+    debt = info.get("debtToEquity") if info else None
 
 
     # =========================
@@ -66,11 +94,11 @@ if symbol:
     # =========================
     st.write("### 📊 Kennzahlen")
 
-    st.write(f"KGV (PE): {round(pe, 2) if pe else 'N/A'}")
-    st.write(f"Wachstum: {round(growth * 100, 2)} %")
-    st.write(f"Profit-Marge: {round(margin * 100, 2)} %")
-    st.write(f"ROE: {round(roe * 100, 2)} %")
-    st.write(f"Verschuldung: {round(debt, 2) if debt else 'N/A'}")
+    st.write(f"KGV (PE): {round(pe, 2) if pe else 'Nicht verfügbar'}")
+    st.write(f"Wachstum: {round(growth * 100, 2) if growth else 'Nicht verfügbar'} %")
+    st.write(f"Profit-Marge: {round(margin * 100, 2) if margin else 'Nicht verfügbar'} %")
+    st.write(f"ROE: {round(roe * 100, 2) if roe else 'Nicht verfügbar'} %")
+    st.write(f"Verschuldung: {round(debt, 2) if debt else 'Nicht verfügbar'}")
 
 
     # =========================
@@ -80,42 +108,35 @@ if symbol:
 
     score = 0
 
-    # Bewertung
     if pe and pe < 25:
         score += 1
 
-    # Wachstum
     if growth and growth > 0.05:
         score += 1
 
-    # Profitabilität
     if margin and margin > 0.15:
         score += 1
 
-    # Effizienz
     if roe and roe > 0.15:
         score += 1
 
-    # Risiko
     if debt and debt < 100:
         score += 1
 
     st.write(f"Score: {score}/5")
 
-
-    # Ergebnis
     if score >= 4:
         st.success("🟢 Kaufen – starke Fundamentaldaten")
     elif score == 3:
         st.info("🟡 Halten – solide Aktie")
     elif score == 2:
-        st.warning("⚪ Neutral – gemischte Signale")
+        st.warning("⚪ Neutral – gemischt")
     else:
-        st.error("🔴 Verkaufen – schwache Kennzahlen")
+        st.error("🔴 Verkaufen – schwach")
 
 
     # =========================
-    # 🧠 Intelligente Analyse
+    # 🧠 Analyse (Text)
     # =========================
     st.write("### 🧠 Analyse")
 
@@ -129,25 +150,25 @@ if symbol:
 
     if growth:
         if growth > 0.1:
-            analysis.append("Das Unternehmen wächst sehr stark.")
+            analysis.append("Das Unternehmen wächst stark.")
         elif growth < 0.03:
-            analysis.append("Das Wachstum ist eher schwach.")
+            analysis.append("Das Wachstum ist schwach.")
 
     if margin:
         if margin > 0.2:
-            analysis.append("Das Unternehmen ist sehr profitabel.")
+            analysis.append("Sehr profitables Unternehmen.")
         elif margin < 0.1:
-            analysis.append("Die Profitabilität ist niedrig.")
+            analysis.append("Niedrige Profitabilität.")
 
     if roe:
         if roe > 0.15:
-            analysis.append("Das Unternehmen arbeitet effizient.")
+            analysis.append("Effiziente Kapitalnutzung.")
 
     if debt:
         if debt > 150:
-            analysis.append("Das Unternehmen ist stark verschuldet.")
+            analysis.append("Hohe Verschuldung.")
         elif debt < 50:
-            analysis.append("Die Verschuldung ist gering.")
+            analysis.append("Geringe Verschuldung.")
 
     if len(analysis) == 0:
         st.write("Keine ausreichende Analyse möglich.")
@@ -157,22 +178,22 @@ if symbol:
 
 
     # =========================
-    # 📚 Erklärung (für Anfänger)
+    # 📚 Erklärung
     # =========================
     st.write("---")
     st.write("## 📚 Erklärung der Kennzahlen")
 
-    with st.expander("📊 KGV (PE)"):
-        st.write("Wie teuer eine Aktie ist im Verhältnis zum Gewinn.")
+    with st.expander("📊 KGV"):
+        st.write("Preis im Verhältnis zum Gewinn.")
 
     with st.expander("📈 Wachstum"):
-        st.write("Wie schnell das Unternehmen wächst.")
+        st.write("Wie stark der Umsatz steigt.")
 
     with st.expander("💰 Marge"):
-        st.write("Wie viel Gewinn ein Unternehmen macht.")
+        st.write("Wie viel Gewinn gemacht wird.")
 
     with st.expander("🏆 ROE"):
-        st.write("Wie effizient das Unternehmen arbeitet.")
+        st.write("Effizienz des Unternehmens.")
 
     with st.expander("⚖️ Verschuldung"):
-        st.write("Wie viel Schulden das Unternehmen hat.")
+        st.write("Wie viele Schulden vorhanden sind.")
